@@ -19,7 +19,7 @@ from data import StockData
 def train():
     EPOCHS = 200
     BATCH_SIZE = 30
-    TIME_STEPS = 60
+    TIME_STEPS = 30
     STOCK_TICKER = 'GOOG'
     STOCK_START_DATE = pd.to_datetime('2015-08-07')
     STOCK_VALIDATION_DATE = pd.to_datetime('2021-09-01')
@@ -30,7 +30,7 @@ def train():
     # train_data, train_label = ds.create_data_label(train, step=sequence_length)
     model = LstmModel(input_size=x_train.shape[1], output_size=50)
     history = model.fit(x_train, y_train, epochs=EPOCHS, batch_size=BATCH_SIZE, validation_data=(x_test, y_test),
-                          callbacks=[callback.EarlyStopping(monitor='val_loss', patience=3, mode='min', verbose=1)])
+                        callbacks=[callback.EarlyStopping(monitor='val_loss', patience=10, mode='min', verbose=1)])
     model.save("../checkpoint/lstm")
     evaluate.visualize_loss(history)
 

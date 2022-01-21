@@ -1,4 +1,4 @@
-import os
+
 import pandas as pd
 import numpy as np
 import yfinance as yf
@@ -9,6 +9,9 @@ import random
 
 
 def create_data_label(data_train, step=60):
+    """ Serialize data by slide window and generate labels after each time step
+        default timesteps is 60 day
+    """
     upper = data_train.shape[0]
     if step >= upper:
         print("step is greater than data")
@@ -19,6 +22,7 @@ def create_data_label(data_train, step=60):
         x_train.append(data_train[i - step:i])
         y_train.append(data_train[i, 0])
     x_train, y_train = np.array(x_train), np.array(y_train)
+    # reshape x_train from (batch, timesteps) to (batch, timestep, feature)
     x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
     return x_train, y_train
 
@@ -37,12 +41,18 @@ class StockData:
     def get_stock_short_name(self):
         return self._sec.info['shortName']
 
-    # create label for sequence data
-    # param:
-    #   data_train - numpy.ndarray (Nx1)
-    #   step - int number of continuous value for 1 label
-
     def download_transform_to_numpy(self, time_steps):
+        """ Download data from yahoo finance, tranform data to numpy array, normalization
+            return:
+                x_train - 3D array (batch, timesteps, feature)
+                y_train - label for x_train
+                x_test - 3D array (batch, timesteps, feature)
+                y_test - label for x_test
+                training_data - all training data numpy array (1)
+                test_data - all test data numpy array (1)
+
+         """
+        # Download data from yahoo finance
         end_date = datetime.today()
         print('End Date: ' + end_date.strftime("%Y-%m-%d"))
         data = yf.download([self.ticker], start=self.start_date, end=end_date)[['Close']]
@@ -50,6 +60,7 @@ class StockData:
         # data.to_csv(os.path.join("./dataset", + self.ticker + '.csv'))
         # print(data)
 
+        # Split data to train data and test data
         training_data = data[data['Date'] < self.validation_date].copy()
         test_data = data[data['Date'] >= self.validation_date].copy()
         training_data = training_data.set_index('Date')
@@ -57,18 +68,23 @@ class StockData:
         test_data = test_data.set_index('Date')
         # print(test_data)
 
+        # Normalization
         train_scaled = self._min_max.fit_transform(training_data)
 
-        # Training Data Transformation
+        # Serialize data and generate labels for train data
         x_train, y_train = create_data_label(train_scaled, time_steps)
 
         total_data = pd.concat((training_data, test_data), axis=0)
         inputs = total_data[len(total_data) - len(test_data) - time_steps:]
         test_scaled = self._min_max.fit_transform(inputs)
 
-        # Testing Data Transformation
+        # Serialize data and generate labels for test data
         x_test, y_test = create_data_label(test_scaled, time_steps)
 
+        print('Shape Train Data :')
+        print(x_train.shape)
+        print('Shape of Label Train Data :')
+        print(y_train.shape)
         return (x_train, y_train), (x_test, y_test), (training_data, test_data)
 
     @staticmethod
@@ -121,6 +137,34 @@ class StockData:
         x_test, y_test = np.array(x_test), np.array(y_test)
         x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1))
         return x_test, y_test, test_data
+
+    def get_test_data(self, time_steps):
+        """ Generate test data """
+
+        # Download data from yahoo finance
+        end_date = datetime.today()
+        print('End Date: ' + end_date.strftime("%Y-%m-%d"))
+        data = yf.download([self.ticker], start=self.start_date, end=end_date)[['Close']]
+        data = data.reset_index()
+        # data.to_csv(os.path.join("./dataset", + self.ticker + '.csv'))
+        # print(data)
+
+        # Split data to train data and test data
+        training_data = data.copy()
+        # Set the data frame index using column Date
+        training_data = training_data.set_index('Date')
+        # print(training_data)
+
+        # Serialize data and generate labels for train data
+        training_data = np.array(training_data)
+        x_train, y_train = create_data_label(training_data, time_steps)
+
+        print('Test Data Shape:')
+        print(x_train.shape)
+        print("Test data label Shape:")
+        print(y_train.shape)
+
+        return x_train, y_train
 
 
 def split_data(data, test_size=0.2):
