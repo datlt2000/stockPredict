@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Stock Predict</title>
+    <script src="https://cdn.anychart.com/releases/v8/js/anychart-base.min.js"></script>
+    <script src="https://cdn.anychart.com/releases/v8/js/anychart-ui.min.js"></script>
+    <script src="https://cdn.anychart.com/releases/v8/js/anychart-exports.min.js"></script>
+    <script src="https://cdn.anychart.com/releases/v8/js/anychart-stock.min.js"></script>
+    <link href="https://cdn.anychart.com/releases/v8/css/anychart-ui.min.css" type="text/css" rel="stylesheet">
+    <link href="https://cdn.anychart.com/releases/v8/fonts/css/anychart-font.min.css" type="text/css" rel="stylesheet">
+    <style type="text/css">
+
+        html, body {
+            height: 100%;
+            width: 100%;
+        }
+
+        #container {
+            width: 60%;
+            height: 1200px;
+            margin: auto;
+            padding: 0;
+        }
+
+        .ml-5 {
+            margin-left: 10px;
+        }
+
+    </style>
+</head>
+<body>
+<form action="/" method="post" id="post-form">
+    <div style="display: flex; flex-basis: 100%; padding-top: 20px;">
+        <div class="ml-5">
+            <label for="model">Model:</label>
+            <select name='model' id="model">
+                <option value="lstm">LSTM</option>
+                <option value="lstm-cnn">LSTM CNN</option>
+                <option value="transformer">Transformer</option>
+            </select>
+        </div>
+        <div class="ml-5">
+            <label for="ticker">Ticker:</label>
+            <input name='ticker' id="ticker" type="text" value="MSFT" maxlength="5"/>
+        </div>
+        <div class="ml-5">
+            <label for="start">Start Time:</label>
+            <input name='start' id="start" type="date" value="2021-06-01"/>
+        </div>
+        <div class="ml-5">
+            <label for="end">End Time:</label>
+            <input name='end' id="end" type="date" value="2022-06-22"/>
+        </div>
+        <input type="submit" value="Submit" class="ml-5">
+    </div>
+</form>
+<div id="container"></div>
+<script
+        src="https://code.jquery.com/jquery-3.6.0.js"
+        integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk="
+        crossorigin="anonymous"></script>
+<script>
+    let dataTable;
+    let dataTablePredict;
+    let chart;
+    let plot;
+    let predictPlot;
+    let rangeSelector;
+    let rangePicker;
+    let volumePlot;
+    let ptcPredictPlot;
+    let ptcRealLine;
+    let ptcPredictLine;
+    let realMeaningLine;
+    let predictMeaningLine;
+    let candlestickLine;
+    let volumeLine;
+    anychart.onDocumentReady(function () {
+        dataTable = anychart.data.table(0);
+        dataTablePredict = anychart.data.table(0);
+        chart = anychart.stock();
+        ptcPredictPlot = chart.plot(0);
+        predictPlot = chart.plot(1);
+        plot = chart.plot(2);
+        ptcPredictPlot.height("40%").yGrid(true).xGrid(true).yMinorGrid(true).xMinorGrid(true);
+        predictPlot.height("40%").yGrid(true).xGrid(true).yMinorGrid(true).xMinorGrid(true);
+        plot.height("40%").yGrid(true).xGrid(true).yMinorGrid(true).xMinorGrid(true);
+        volumePlot = chart.plot(3);
+        volumePlot.height("20%");
+        // set yAxis labels formatter
+        volumePlot.yAxis().labels().format('{%Value}{scale:(1000)(1)|(k)}');
+        // set crosshair y-label formatter
+        volumePlot
+            .crosshair()
+            .yLabel()
+            .format('{%Value}{scale:(1000)(1)|(k)}');
+        ptcRealLine = ptcPredictPlot.line().name("PTC Real").stroke({color: "blue"});
+        ptcPredictLine = ptcPredictPlot.line().name("PTC Predict").stroke({color: "coral"});
+        realMeaningLine = predictPlot.line()
+            .name("Real Meaning Price").stroke({color: "blue", thickness: 2});
+        predictMeaningLine = predictPlot.line().name("Predict Meaning Price").stroke({color: "coral", thickness: 2});
+        candlestickLine = plot.candlestick();
+        volumeLine = volumePlot.column().name('Volume');
+        chart.container('container');
+        chart.draw();
+        rangePicker = anychart.ui.rangePicker();
+        rangeSelector = anychart.ui.rangeSelector();
+        rangePicker.render(chart);
+        rangeSelector.render(chart);
+    });
+    $('#post-form').on('submit', function (event) {
+        event.preventDefault();
+        let ticker = $("#ticker").val();
+        let start = $("#start").val();
+        let end = $("#end").val();
+        let model = $("#model").val();
+        let data = {"ticker": ticker, "start": start, "end": end, 'model': model};
+        $.ajax({
+            url: "/filter", // the endpoint
+            type: "POST", // http method
+            dataType: "json",
+            data: JSON.stringify(data), // data sent with the post request
+            contentType: 'application/json; charset=utf-8',
+            // handle a successful response
+            success: function (json) {
+                // console.log(json);
+                dataTable.addData(json.real);
+                dataTablePredict.addData(json.predict);
+                let mapping = dataTable.mapAs({open: 1, high: 2, low: 3, close: 4, value: 5});
+                let predictMapping = dataTablePredict.mapAs({value: 2});
+                let closeMapping = dataTablePredict.mapAs({value: 1});
+                let ptcMapping = dataTablePredict.mapAs({value: 3});
+                let ptcPredictMapping = dataTablePredict.mapAs({value: 4});
+                candlestickLine.name(ticker);
+                ptcRealLine.data(ptcMapping);
+                ptcPredictLine.data(ptcPredictMapping);
+                realMeaningLine.data(closeMapping);
+                predictMeaningLine.data(predictMapping);
+                candlestickLine.data(mapping);
+
+                chart.scroller().area(closeMapping);
+                chart.draw();
+                // set chart selected date/time range
+                // chart.selectRange(start, "2022-06-10");
+            },
+
+            // handle a non-successful response
+            error: function (err) {
+                console.log(err);
+            }
+        });
+    });
+</script>
+</body>
+</html>
