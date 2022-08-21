@@ -1,9 +1,0 @@
-numpy~=1.22.4
-matplotlib~=3.5.2
-Django~=2.2.12
-sklearn~=0.0
-scikit-learn~=1.1.1
-yfinance~=0.1.72
-pandas~=1.4.2
-tensorflow~=2.9.1
-seaborn~=0.11.2
